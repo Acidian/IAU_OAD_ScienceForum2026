@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#120d2e">
+<title>OAD – Explore our work</title>
+<!--
+  IAU Office of Astronomy for Development – Science Forum kiosk
+  MVP v0.1 (2026-11-25). Single self-contained file: no external fonts, scripts or images.
+  Edit CONFIG and ACTIVITIES below. All activity text is PLACEHOLDER until approved.
+-->
+<style>
+  :root {
+    --bg1: #120d2e;
+    --bg2: #1d1547;
+    --ink: #f3f0ff;
+    --muted: #b9b0e6;
+    --accent: #5ee7f0;
+    --accent-ink: #0b2a33;
+    --line: rgba(180, 160, 255, .35);
+    --panel: rgba(30, 22, 72, .96);
+    --ps: clamp(64px, 14vmin, 160px);      /* planet size */
+    --radius: 18px;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    color: var(--ink);
+    background:
+      radial-gradient(ellipse at 50% 55%, #2a1f6b 0%, transparent 60%),
+      linear-gradient(180deg, var(--bg1), var(--bg2));
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    display: flex; flex-direction: column;
+  }
+  /* starfield, pure CSS */
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .7;
+    background-image:
+      radial-gradient(1.5px 1.5px at 10% 20%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 30% 70%, #fff 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 55% 15%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 75% 40%, #fff 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 90% 80%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 20% 90%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 65% 85%, #fff 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 85% 10%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 45% 45%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 5% 55%, #fff 50%, transparent 51%);
+    background-size: 420px 420px;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  /* ---------- header ---------- */
+  header {
+    position: relative; z-index: 500;   /* above overlays: Home + My flyers always visible */
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    padding: 2vmin 3vmin 0;
+  }
+  .brand { font-weight: 800; font-size: clamp(24px, 5vmin, 48px); letter-spacing: .02em; }
+  .titles { text-align: center; }
+  .titles h1 { margin: 0; font-size: clamp(22px, 5vmin, 52px); }
+  .titles p { margin: .2em 0 0; color: var(--accent); font-size: clamp(14px, 2.4vmin, 24px); }
+  .hdr-actions { display: flex; gap: 1.5vmin; justify-content: flex-end; align-items: center; }
+  .pill {
+    display: inline-flex; align-items: center; gap: .5em;
+    min-height: 48px; padding: .5em 1.1em; border-radius: 999px;
+    border: 2px solid var(--line); background: rgba(255,255,255,.06);
+    font-size: clamp(15px, 2.2vmin, 22px); font-weight: 600;
+  }
+  .pill svg { width: 1.2em; height: 1.2em; }
+  .pill.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .pill:active { transform: scale(.97); }
+  .pill[disabled] { opacity: .45; cursor: default; }
+  #basketBtn.bump { animation: bump .45s ease; }
+  @keyframes bump { 40% { transform: scale(1.15); } }
+  #queueBadge { display: none; font-size: 14px; color: var(--muted); }
+
+  /* ---------- orbit stage ---------- */
+  #stage {
+    position: relative; flex: 1; min-height: 0;
+    touch-action: none; cursor: grab; overflow: hidden;
+  }
+  #stage.dragging { cursor: grabbing; }
+  #ring { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #sun {
+    position: absolute; z-index: 50; left: 50%; top: 50%;
+    width: calc(var(--ps) * 1.7); height: calc(var(--ps) * 1.7);
+    transform: translate(-50%, -50%); border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 900; font-size: calc(var(--ps) * .42); letter-spacing: .02em;
+    background: radial-gradient(circle at 35% 30%, #a99bff, #5b3fd6 45%, #2a1878 100%);
+    box-shadow: 0 0 40px 10px rgba(140, 110, 255, .55), inset -12px -16px 30px rgba(0,0,0,.35);
+    animation: glow 5s ease-in-out infinite; pointer-events: none;
+  }
+  @keyframes glow { 50% { box-shadow: 0 0 70px 18px rgba(140,110,255,.7), inset -12px -16px 30px rgba(0,0,0,.35); } }
+
+  .planet {
+    position: absolute; left: 0; top: 0; border: 0; background: none; padding: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    transform-origin: 50% 50%; will-change: transform, opacity;
+    width: calc(var(--ps) * 1.9);
+  }
+  .globe {
+    position: relative; width: var(--ps); height: var(--ps); border-radius: 50%; overflow: hidden;
+    background: radial-gradient(circle at 32% 28%, hsl(var(--h) 95% 78%), hsl(var(--h) 75% 48%) 45%, hsl(var(--h) 70% 18%) 100%);
+    box-shadow: 0 0 24px 2px hsl(var(--h) 90% 60% / .45);
+    display: grid; place-items: center;
+  }
+  .globe::before { /* bands */
+    content: ""; position: absolute; inset: -20%;
+    background: repeating-linear-gradient(-18deg, transparent 0 14%, rgba(255,255,255,.10) 14% 20%, transparent 20% 31%, rgba(0,0,0,.10) 31% 36%);
+  }
+  .globe::after { /* terminator shading */
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    box-shadow: inset -14px -18px 28px rgba(0,0,0,.45);
+  }
+  .globe svg { position: relative; z-index: 1; width: 44%; height: 44%; stroke: #fff; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); }
+  .label {
+    padding: .35em .9em; border-radius: 12px; text-align: center; line-height: 1.15;
+    font-weight: 700; font-size: clamp(14px, 2.3vmin, 22px);
+    background: rgba(18, 13, 46, .85); border: 2px solid hsl(var(--h) 80% 65%);
+    max-width: 100%;
+  }
+  .planet.front .globe { box-shadow: 0 0 34px 8px hsl(var(--h) 90% 65% / .7); }
+  .planet.front .label { background: hsl(var(--h) 70% 30% / .95); }
+  .planet:focus-visible { outline: none; }
+  .planet:focus-visible .label { outline: 3px solid var(--accent); }
+
+  .controls {
+    position: relative; z-index: 200;
+    display: flex; justify-content: center; align-items: center; gap: 3vmin;
+    padding: 0 3vmin 2.5vmin;
+  }
+  .arrow {
+    width: 64px; height: 64px; border-radius: 50%; font-size: 34px; line-height: 1;
+    border: 2px solid var(--line); background: rgba(255,255,255,.06);
+  }
+  .arrow:active { transform: scale(.94); }
+  .hint { color: var(--muted); font-size: clamp(14px, 2.2vmin, 20px); text-align: center; min-width: 16em; }
+
+  /* ---------- overlays ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 400; display: none;
+    background: rgba(8, 5, 25, .72); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center; padding: calc(var(--hdr, 90px) + 1vmin) 3vmin 3vmin;
+  }
+  .overlay.open { display: flex; animation: fade .2s ease; }
+  @keyframes fade { from { opacity: 0; } }
+  .panel {
+    width: min(1000px, 96vw); max-height: 100%; overflow: auto;
+    background: var(--panel); border: 2px solid var(--line); border-radius: 24px;
+    padding: clamp(18px, 4vmin, 40px);
+    user-select: text; -webkit-user-select: text;
+    animation: rise .25s ease;
+  }
+  @keyframes rise { from { transform: translateY(24px); } }
+  .panel h2 { margin: 0 0 .2em; font-size: clamp(24px, 4.4vmin, 44px); }
+  .panel .tag { color: var(--accent); margin: 0 0 1em; font-size: clamp(16px, 2.6vmin, 24px); }
+  .panel p, .panel li { font-size: clamp(16px, 2.5vmin, 22px); line-height: 1.45; }
+  .flyer-grid { display: grid; grid-template-columns: auto 1fr; gap: 4vmin; align-items: start; }
+  .flyer-grid .globe { --ps: clamp(110px, 22vmin, 220px); }
+  .more { color: var(--muted); }
+  .actions { display: flex; flex-wrap: wrap; gap: 2vmin; margin-top: 3vmin; }
+  .actions .pill { font-size: clamp(16px, 2.5vmin, 22px); min-height: 56px; }
+  .qr-row { display: flex; gap: 4vmin; align-items: center; margin-top: 1em; }
+  .qr {
+    width: clamp(140px, 24vmin, 220px); aspect-ratio: 1; border-radius: 12px; background: #fff; color: #333;
+    display: grid; place-items: center; text-align: center; font-weight: 700; padding: 10px;
+  }
+  .note { font-size: clamp(14px, 2.1vmin, 18px) !important; color: var(--muted); }
+
+  /* basket */
+  .basket-list { list-style: none; padding: 0; margin: 0 0 1.2em; display: grid; gap: 10px; }
+  .basket-list li { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 14px; background: rgba(255,255,255,.06); }
+  .basket-list .dot { width: 22px; height: 22px; border-radius: 50%; background: hsl(var(--h) 75% 55%); flex: none; }
+  .basket-list .t { flex: 1; font-weight: 600; }
+  .basket-list button { border: 0; background: rgba(255,255,255,.1); border-radius: 10px; min-width: 48px; min-height: 44px; font-size: 16px; }
+  label.field { display: block; font-weight: 700; margin-bottom: .4em; font-size: clamp(16px, 2.5vmin, 22px); }
+  input[type=email] {
+    width: 100%; font-size: clamp(20px, 3.2vmin, 28px); padding: .55em .7em; border-radius: 14px;
+    border: 2px solid var(--line); background: #fff; color: #111;
+  }
+  input[type=email]:focus { outline: 3px solid var(--accent); }
+  .consent { display: flex; gap: 14px; align-items: flex-start; margin: 1em 0; font-size: clamp(15px, 2.3vmin, 20px); line-height: 1.4; }
+  .consent input { width: 30px; height: 30px; flex: none; margin-top: 2px; accent-color: var(--accent); }
+  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; } /* honeypot */
+  .error { color: #ffb4b4; min-height: 1.4em; font-weight: 600; }
+  iframe.preview { width: 100%; height: 50vh; border: 0; border-radius: 12px; background: #fff; margin-top: 1em; }
+
+  @media (orientation: portrait) {
+    .flyer-grid { grid-template-columns: 1fr; justify-items: center; text-align: left; }
+    header { grid-template-columns: 1fr auto; }
+    .titles { grid-column: 1 / -1; grid-row: 2; margin-top: 1vmin; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand" aria-label="Office of Astronomy for Development">OAD</div>
+  <div class="titles">
+    <h1>Explore our work</h1>
+    <p>Tap a planet · swipe to orbit</p>
+  </div>
+  <div class="hdr-actions">
+    <span id="queueBadge" aria-live="polite"></span>
+    <button class="pill" id="homeBtn" aria-label="Home">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 12h3v8h5v-5h4v5h5v-8h3z"/></svg>Home
+    </button>
+    <button class="pill primary" id="basketBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="3" width="13" height="15" rx="2"/><path d="M4 7v12a2 2 0 0 0 2 2h11"/></svg>
+      My flyers: <span id="basketCount">0</span>
+    </button>
+  </div>
+</header>
+
+<main id="stage" aria-label="OAD activities. Use the arrow buttons or swipe to rotate.">
+  <svg id="ring" aria-hidden="true"></svg>
+  <div id="sun" aria-hidden="true">OAD</div>
+  <!-- planets injected here -->
+</main>
+
+<div class="controls">
+  <button class="arrow" id="prevBtn" aria-label="Previous activity">‹</button>
+  <div class="hint" id="hint" aria-live="polite"></div>
+  <button class="arrow" id="nextBtn" aria-label="Next activity">›</button>
+</div>
+
+<!-- Flyer overlay -->
+<div class="overlay" id="flyerOverlay" role="dialog" aria-modal="true" aria-labelledby="flyerTitle">
+  <div class="panel" id="flyerPanel"></div>
+</div>
+
+<!-- Basket / email overlay -->
+<div class="overlay" id="basketOverlay" role="dialog" aria-modal="true" aria-labelledby="basketTitle">
+  <div class="panel">
+    <h2 id="basketTitle">Email my flyers</h2>
+    <p class="tag">We'll send your chosen flyers in one email.</p>
+    <ul class="basket-list" id="basketList"></ul>
+    <form id="sendForm" autocomplete="off" novalidate>
+      <label class="field" for="email">Your email address</label>
+      <input type="email" id="email" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="name@example.com">
+      <input class="hp" type="text" id="website" name="website" tabindex="-1" aria-hidden="true">
+      <label class="consent">
+        <input type="checkbox" id="consent">
+        <span id="consentText"></span>
+      </label>
+      <div class="error" id="sendError" role="alert"></div>
+      <div class="actions">
+        <button type="button" class="pill" data-home>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 12h3v8h5v-5h4v5h5v-8h3z"/></svg>Home
+        </button>
+        <button type="submit" class="pill primary" id="sendBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Send to my email
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Done overlay -->
+<div class="overlay" id="doneOverlay" role="dialog" aria-modal="true" aria-labelledby="doneTitle">
+  <div class="panel">
+    <h2 id="doneTitle"></h2>
+    <p class="tag" id="doneMsg"></p>
+    <div id="donePreview"></div>
+    <div class="actions">
+      <button class="pill primary" data-home>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 12h3v8h5v-5h4v5h5v-8h3z"/></svg>Back to start
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   CONFIG – edit these
+   ===================================================================== */
+const CONFIG = {
+  // Google Apps Script web-app URL (see kiosk-mailer .gs file). Empty = DEMO MODE (no email sent, preview shown).
+  MAILER_URL: '',
+  SITE_URL: 'https://www.astro4dev.org',
+  MAILING_LIST_URL: '',           // [to confirm] e.g. signup form link
+  DISCORD_URL: '',                // [to confirm] e.g. Discord invite link
+  PRIVACY_URL: '',                // [to confirm] optional privacy notice link shown in the email
+  IDLE_RESET_MS: 90 * 1000,       // reset to start after this much inactivity (overlay open)
+  ATTRACT_AFTER_MS: 20 * 1000,    // slow auto-orbit on home after this much inactivity
+  SEND_COOLDOWN_MS: 10 * 1000,
+  CONSENT_TEXT: 'Send my chosen flyers to this email. OAD uses it only to send this one email. It is not stored or added to any mailing list.'
+};
+
+/* =====================================================================
+   ACTIVITIES – add/remove freely; the orbit adapts to any number.
+   type: 'flyer' (can be added to basket) or 'join' (QR + link, not emailed as a flyer)
+   hue: 0–360 planet colour. icon: key from ICONS.
+   ALL TEXT BELOW IS PLACEHOLDER – replace with approved copy from astro4dev.org.
+   ===================================================================== */
+const PH_SUMMARY = '[2–3 sentence summary from astro4dev.org – to confirm]';
+const PH_POINTS = ['[Key fact 1 – to confirm]', '[Key fact 2 – to confirm]', '[Key fact 3 – to confirm]'];
+const ACTIVITIES = [
+  { id: 'flagship-1', type: 'flyer', label: 'Flagship 1', title: 'Flagship 1 – Astrotourism [to confirm]', hue: 190, icon: 'star',
+    tagline: '[One-line tagline – to confirm]', summary: PH_SUMMARY, points: PH_POINTS, link: 'https://www.astro4dev.org' },
+  { id: 'flagship-2', type: 'flyer', label: 'Flagship 2', title: 'Flagship 2 – [title]', hue: 265, icon: 'telescope',
+    tagline: '[One-line tagline – to confirm]', summary: PH_SUMMARY, points: PH_POINTS, link: 'https://www.astro4dev.org' },
+  { id: 'flagship-3', type: 'flyer', label: 'Flagship 3', title: 'Flagship 3 – [title]', hue: 32, icon: 'orbit',
+    tagline: '[One-line tagline – to confirm]', summary: PH_SUMMARY, points: PH_POINTS, link: 'https://www.astro4dev.org' },
+  { id: 'hub', type: 'flyer', label: 'The Hub', title: 'The Hub', hue: 175, icon: 'hub',
+    tagline: '[One-line tagline – to confirm]', summary: PH_SUMMARY, points: PH_POINTS, link: 'https://www.astro4dev.org' },
+  { id: 'research-institute', type: 'flyer', label: 'Research Institute', title: 'Research Institute', hue: 285, icon: 'book',
+    tagline: '[One-line tagline – to confirm]', summary: PH_SUMMARY, points: PH_POINTS, link: 'https://www.astro4dev.org' },
+  { id: 'funded-projects', type: 'flyer', label: 'Funded Projects', title: 'Funded Projects', hue: 40, icon: 'globe',
+    tagline: '[One-line tagline – to confirm]', summary: PH_SUMMARY, points: PH_POINTS, link: 'https://www.astro4dev.org' },
+  { id: 'regional-offices', type: 'flyer', label: 'Regional Offices', title: 'Regional Offices', hue: 140, icon: 'pin',
+    tagline: '[One-line tagline – to confirm]', summary: PH_SUMMARY, points: PH_POINTS, link: 'https://www.astro4dev.org' },
+  { id: 'hack4dev', type: 'flyer', label: 'Hack4Dev', title: 'Hack4Dev', hue: 330, icon: 'code',
+    tagline: '[One-line tagline – to confirm]', summary: PH_SUMMARY, points: PH_POINTS, link: 'https://www.astro4dev.org' },
+  { id: 'mailing-list', type: 'join', label: 'Join our Mailing List', title: 'Join our Mailing List', hue: 200, icon: 'mail',
+    tagline: 'News, calls and opportunities from the OAD.', urlKey: 'MAILING_LIST_URL' },
+  { id: 'discord', type: 'join', label: 'Join Discord', title: 'Join our Discord', hue: 250, icon: 'chat',
+    tagline: 'Chat with the astronomy-for-development community.', urlKey: 'DISCORD_URL' }
+];
+
+/* Inline SVG icons (24×24, stroke) */
+const ICONS = {
+  star: '<path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.6L12 17.1l-5.9 3.3 1.3-6.6-4.9-4.5 6.6-.8z"/>',
+  telescope: '<path d="M3 13.5 15.5 7l2 4L5 17.5z"/><path d="M15.5 7 19 5.2l2 4-3.5 1.8"/><path d="M10 15.5 7.5 21.5M11.5 15l2.5 6.5"/>',
+  orbit: '<circle cx="12" cy="12" r="3.5"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"/><circle cx="20" cy="8.5" r="1.3"/>',
+  hub: '<circle cx="12" cy="12" r="2.8"/><circle cx="4" cy="5" r="1.8"/><circle cx="20" cy="5" r="1.8"/><circle cx="4" cy="19" r="1.8"/><circle cx="20" cy="19" r="1.8"/><path d="M5.5 6.3 10 10M18.5 6.3 14 10M5.5 17.7 10 14M18.5 17.7 14 14"/>',
+  book: '<path d="M2.5 5c3-1.5 6.5-1.5 9.5 1 3-2.5 6.5-2.5 9.5-1v14c-3-1.5-6.5-1.5-9.5 1-3-2.5-6.5-2.5-9.5-1z"/><path d="M12 6v14"/>',
+  globe: '<circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c3 3 3 16 0 19M12 2.5c-3 3-3 16 0 19"/>',
+  pin: '<path d="M12 21.5s-7-6.3-7-11.5a7 7 0 0 1 14 0c0 5.2-7 11.5-7 11.5z"/><circle cx="12" cy="10" r="2.6"/>',
+  code: '<path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>',
+  mail: '<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+  chat: '<path d="M4 4h16v11H9l-5 4z"/><circle cx="8.5" cy="9.5" r=".6"/><circle cx="12" cy="9.5" r=".6"/><circle cx="15.5" cy="9.5" r=".6"/>'
+};
+const svgIcon = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k] || ICONS.star}</svg>`;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = id => document.getElementById(id);
+
+/* =====================================================================
+   ORBIT CAROUSEL
+   ===================================================================== */
+const stage = $('stage'), ring = $('ring');
+const N = ACTIVITIES.length, STEP = (Math.PI * 2) / N, TAU = Math.PI * 2;
+let theta = 0;                 // rotation offset (radians); item i sits at angle theta + i*STEP, 0 = front
+let geom = { cx: 0, cy: 0, rx: 1, ry: 1 };
+let anim = null;               // current rAF id for inertia/snap/attract
+const planets = ACTIVITIES.map((a, i) => {
+  const el = document.createElement('button');
+  el.className = 'planet';
+  el.style.setProperty('--h', a.hue);
+  el.dataset.index = i;
+  el.setAttribute('aria-label', a.title);
+  el.innerHTML = `<div class="globe">${svgIcon(a.icon)}</div><span class="label">${esc(a.label)}</span>`;
+  // keyboard activation only (pointer taps are handled by the stage)
+  el.addEventListener('click', e => { if (e.detail === 0) openFlyer(i); });
+  stage.appendChild(el);
+  return { el, w: 0, h: 0 };
+});
+
+function layout() {
+  document.documentElement.style.setProperty('--hdr', document.querySelector('header').offsetHeight + 'px');
+  const r = stage.getBoundingClientRect();
+  const sample = planets[0].el;
+  sample.style.transform = 'none';
+  const pw = sample.offsetWidth, ph = sample.offsetHeight;
+  planets.forEach(p => { p.w = pw; p.h = ph; });
+  geom.cx = r.width / 2;
+  geom.cy = r.height / 2;
+  geom.rx = Math.max(120, r.width / 2 - pw * 0.55);
+  geom.ry = Math.max(60, r.height / 2 - ph * 0.55);
+  ring.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
+  ring.innerHTML = `<ellipse cx="${geom.cx}" cy="${geom.cy}" rx="${geom.rx}" ry="${geom.ry}" fill="none" stroke="rgba(170,150,255,.45)" stroke-width="2"/>
+    <ellipse cx="${geom.cx}" cy="${geom.cy}" rx="${geom.rx * .55}" ry="${geom.ry * .55}" fill="none" stroke="rgba(170,150,255,.15)" stroke-width="1.5" stroke-dasharray="4 8"/>`;
+  render();
+}
+
+function frontIndex() { return ((Math.round(-theta / STEP) % N) + N) % N; }
+
+function render() {
+  for (let i = 0; i < N; i++) {
+    const a = theta + i * STEP;
+    const s = Math.sin(a), c = Math.cos(a);
+    const d = (c + 1) / 2;                         // depth: 1 = front, 0 = back
+    const x = geom.cx + geom.rx * s, y = geom.cy + geom.ry * c;
+    const sc = 0.5 + 0.55 * d;
+    const p = planets[i];
+    p.el.style.transform = `translate3d(${x - p.w / 2}px, ${y - p.h / 2}px, 0) scale(${sc})`;
+    p.el.style.zIndex = Math.round(d * 100);
+    p.el.style.opacity = (0.35 + 0.65 * d).toFixed(3);
+  }
+  const f = frontIndex();
+  planets.forEach((p, i) => p.el.classList.toggle('front', i === f));
+  $('hint').textContent = `${ACTIVITIES[f].label}  ·  ${f + 1} of ${N}`;
+}
+
+function stopAnim() { if (anim) cancelAnimationFrame(anim); anim = null; }
+
+function animateTo(target, dur = 450, done) {
+  stopAnim();
+  const start = theta, t0 = performance.now();
+  const ease = t => 1 - Math.pow(1 - t, 3);
+  const tick = now => {
+    const t = Math.min(1, (now - t0) / dur);
+    theta = start + (target - start) * ease(t);
+    render();
+    if (t < 1) anim = requestAnimationFrame(tick);
+    else { anim = null; done && done(); }
+  };
+  anim = requestAnimationFrame(tick);
+}
+function snap(done) { animateTo(Math.round(theta / STEP) * STEP, 380, done); }
+function rotateBy(n) { animateTo(Math.round(theta / STEP) * STEP - n * STEP, 450); }
+// bring item i to front by the shortest route
+function bringToFront(i, done) {
+  let target = -i * STEP;
+  target += TAU * Math.round((theta - target) / TAU);
+  animateTo(target, 500, done);
+}
+function inertia(v) {               // v in rad/ms
+  stopAnim();
+  let last = performance.now();
+  const tick = now => {
+    const dt = Math.min(32, now - last); last = now;
+    theta += v * dt;
+    v *= Math.pow(0.994, dt);
+    render();
+    if (Math.abs(v) > 0.00025) anim = requestAnimationFrame(tick);
+    else { anim = null; snap(); }
+  };
+  anim = requestAnimationFrame(tick);
+}
+
+/* drag / swipe / tap */
+let drag = null;
+stage.addEventListener('pointerdown', e => {
+  if (e.button > 0) return;
+  markActive(); stopAnim();      // markActive may start a snap; stopAnim cancels it so the drag takes over
+  drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, xLast: e.clientX, tLast: performance.now(),
+           t0: performance.now(), theta0: theta, moved: 0, v: 0,
+           target: e.target.closest('.planet') };
+  try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+});
+stage.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX - drag.x0;
+  drag.moved = Math.max(drag.moved, Math.hypot(dx, e.clientY - drag.y0));
+  if (drag.moved > 8) stage.classList.add('dragging');
+  const now = performance.now(), dt = now - drag.tLast;
+  if (dt > 0) { const v = (e.clientX - drag.xLast) / geom.rx / dt; drag.v = 0.6 * v + 0.4 * drag.v; }
+  drag.xLast = e.clientX; drag.tLast = now;
+  theta = drag.theta0 + dx / geom.rx;
+  render();
+});
+function endDrag(e, cancelled) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag; drag = null;
+  stage.classList.remove('dragging');
+  const isTap = !cancelled && d.moved < 10 && performance.now() - d.t0 < 600;
+  if (isTap && d.target) {
+    const i = +d.target.dataset.index;
+    if (i === frontIndex() && Math.abs(theta - Math.round(theta / STEP) * STEP) < 0.05) openFlyer(i);
+    else bringToFront(i, () => openFlyer(i));
+    return;
+  }
+  // ignore stale velocity if finger rested before release
+  const v = performance.now() - d.tLast > 80 ? 0 : d.v;
+  if (Math.abs(v) > 0.0006) inertia(Math.max(-0.02, Math.min(0.02, v)));
+  else snap();
+}
+stage.addEventListener('pointerup', e => endDrag(e, false));
+stage.addEventListener('pointercancel', e => endDrag(e, true));
+stage.addEventListener('wheel', e => {            // trackpad / mouse wheel on laptops
+  e.preventDefault(); markActive(); stopAnim();
+  theta -= (e.deltaX || e.deltaY) / geom.rx; render();
+  clearTimeout(stage._wheelT); stage._wheelT = setTimeout(snap, 140);
+}, { passive: false });
+
+$('prevBtn').onclick = () => { markActive(); rotateBy(-1); };
+$('nextBtn').onclick = () => { markActive(); rotateBy(1); };
+document.addEventListener('keydown', e => {
+  markActive();
+  if (anyOverlayOpen()) { if (e.key === 'Escape') goHome(false); return; }
+  if (e.key === 'ArrowRight') rotateBy(1);
+  else if (e.key === 'ArrowLeft') rotateBy(-1);
+  else if (e.key === 'Enter' && !e.target.closest('button')) openFlyer(frontIndex());
+});
+window.addEventListener('resize', layout);
+
+/* =====================================================================
+   BASKET
+   ===================================================================== */
+const basket = new Set();
+function updateBasketUI(bump) {
+  $('basketCount').textContent = basket.size;
+  if (bump) { const b = $('basketBtn'); b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
+}
+function toggleBasket(id) {
+  if (basket.has(id)) basket.delete(id); else basket.add(id);
+  updateBasketUI(basket.has(id));
+}
+
+/* =====================================================================
+   OVERLAYS
+   ===================================================================== */
+const overlays = ['flyerOverlay', 'basketOverlay', 'doneOverlay'];
+const anyOverlayOpen = () => overlays.some(o => $(o).classList.contains('open'));
+function showOverlay(id) { overlays.forEach(o => $(o).classList.toggle('open', o === id)); }
+function closeOverlays() { overlays.forEach(o => $(o).classList.remove('open')); }
+
+const HOME_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 12h3v8h5v-5h4v5h5v-8h3z"/></svg>';
+
+function openFlyer(i) {
+  markActive();
+  const a = ACTIVITIES[i];
+  const panel = $('flyerPanel');
+  const globe = `<div class="globe" style="--h:${a.hue}">${svgIcon(a.icon)}</div>`;
+  if (a.type === 'join') {
+    const url = CONFIG[a.urlKey];
+    panel.innerHTML = `
+      <div class="flyer-grid">${globe}<div>
+        <h2 id="flyerTitle">${esc(a.title)}</h2>
+        <p class="tag">${esc(a.tagline)}</p>
+        <p>Scan with your phone camera to join:</p>
+        <div class="qr-row">
+          <div class="qr">QR code<br>[to add]</div>
+          <p><strong>${url ? esc(url.replace(/^https?:\/\//, '')) : '[link – to confirm]'}</strong></p>
+        </div>
+        <p class="note">Joining is separate from emailing flyers. This kiosk never adds anyone to a list.</p>
+      </div></div>
+      <div class="actions">
+        <button class="pill" data-home>${HOME_SVG}Home</button>
+        ${basket.size ? `<button class="pill primary" data-basket>Email my flyers (${basket.size})</button>` : ''}
+      </div>`;
+  } else {
+    const inB = basket.has(a.id);
+    panel.innerHTML = `
+      <div class="flyer-grid">${globe}<div>
+        <h2 id="flyerTitle">${esc(a.title)}</h2>
+        <p class="tag">${esc(a.tagline)}</p>
+        <p>${esc(a.summary)}</p>
+        <ul>${(a.points || []).map(p => `<li>${esc(p)}</li>`).join('')}</ul>
+        <p class="more">More at ${esc((a.link || CONFIG.SITE_URL).replace(/^https?:\/\//, ''))}</p>
+      </div></div>
+      <div class="actions">
+        <button class="pill" data-home>${HOME_SVG}Home</button>
+        <button class="pill ${inB ? '' : 'primary'}" data-toggle="${esc(a.id)}">${inB ? '✓ Added · remove' : '+ Add to my flyers'}</button>
+        <button class="pill ${inB ? 'primary' : ''}" data-basket ${basket.size ? '' : 'disabled'}>Email my flyers (${basket.size})</button>
+      </div>`;
+  }
+  showOverlay('flyerOverlay');
+}
+
+function openBasket() {
+  markActive();
+  const list = $('basketList');
+  const items = ACTIVITIES.filter(a => basket.has(a.id));
+  list.innerHTML = items.length
+    ? items.map(a => `<li style="--h:${a.hue}"><span class="dot"></span><span class="t">${esc(a.title)}</span><button type="button" data-remove="${esc(a.id)}" aria-label="Remove ${esc(a.title)}">✕</button></li>`).join('')
+    : '<li><span class="t">No flyers yet. Tap a planet, then “Add to my flyers”.</span></li>';
+  $('sendError').textContent = '';
+  updateSendState();
+  showOverlay('basketOverlay');
+}
+
+function goHome(reset) {
+  closeOverlays();
+  if (reset) {
+    basket.clear(); updateBasketUI(false);
+    $('email').value = ''; $('consent').checked = false; $('website').value = '';
+    animateTo(Math.round(theta / TAU) * TAU, 600);  // back to first planet
+  }
+  if (document.activeElement) document.activeElement.blur();
+}
+
+// delegated clicks inside overlays
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-home],[data-basket],[data-toggle],[data-remove]');
+  if (!t) {
+    // tap on dimmed backdrop closes the overlay
+    if (e.target.classList && e.target.classList.contains('overlay')) closeOverlays();
+    return;
+  }
+  markActive();
+  if (t.hasAttribute('data-home')) goHome($('doneOverlay').classList.contains('open'));
+  else if (t.hasAttribute('data-basket')) openBasket();
+  else if (t.dataset.toggle) { toggleBasket(t.dataset.toggle); openFlyer(ACTIVITIES.findIndex(a => a.id === t.dataset.toggle)); }
+  else if (t.dataset.remove) { basket.delete(t.dataset.remove); updateBasketUI(false); openBasket(); }
+});
+$('homeBtn').onclick = () => { markActive(); goHome(false); };
+$('basketBtn').onclick = () => openBasket();
+
+/* =====================================================================
+   SENDING
+   ===================================================================== */
+$('consentText').textContent = CONFIG.CONSENT_TEXT;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+let lastSend = 0;
+function updateSendState() {
+  const ok = basket.size > 0 && EMAIL_RE.test($('email').value.trim()) && $('consent').checked;
+  $('sendBtn').disabled = !ok;
+}
+$('email').addEventListener('input', () => { markActive(); updateSendState(); });
+$('consent').addEventListener('change', () => { markActive(); updateSendState(); });
+
+$('sendForm').addEventListener('submit', async e => {
+  e.preventDefault(); markActive();
+  const email = $('email').value.trim();
+  const ids = ACTIVITIES.filter(a => basket.has(a.id)).map(a => a.id);
+  if (!ids.length) return ($('sendError').textContent = 'Add at least one flyer first.');
+  if (!EMAIL_RE.test(email)) return ($('sendError').textContent = 'Please check the email address.');
+  if (!$('consent').checked) return ($('sendError').textContent = 'Please tick the box to continue.');
+  if (Date.now() - lastSend < CONFIG.SEND_COOLDOWN_MS) return ($('sendError').textContent = 'One moment, please try again in a few seconds.');
+  lastSend = Date.now();
+  const payload = { email, ids, website: $('website').value };   // website = honeypot
+
+  if (!CONFIG.MAILER_URL) {                                        // DEMO MODE
+    showDone('Demo mode: no email sent',
+      `Set CONFIG.MAILER_URL to send for real. This is roughly what ${email} would receive:`,
+      buildEmailHtml(ids));
+    return;
+  }
+  $('sendBtn').disabled = true; $('sendError').textContent = 'Sending…';
+  try {
+    await postToMailer(payload);
+    showDone('Sent!', 'Check your inbox in a minute or two (and your spam folder, just in case).');
+  } catch (err) {
+    if (err.offline) {
+      queuePush(payload);
+      showDone('Saved, will send shortly', 'The kiosk is offline right now. Your email will go out as soon as the connection is back.');
+    } else {
+      $('sendError').textContent = err.message === 'recently_sent'
+        ? 'We sent flyers to this address a few minutes ago. Please check your inbox.'
+        : 'Sorry, that didn’t work. Please check the address and try again.';
+      updateSendState();
+    }
+  }
+});
+
+async function postToMailer(payload) {
+  let res;
+  try {
+    // text/plain avoids a CORS preflight, which Apps Script does not answer
+    res = await fetch(CONFIG.MAILER_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+  } catch (_) { const e = new Error('offline'); e.offline = true; throw e; }
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  if (!res.ok || !data.ok) throw new Error(data.error || 'server');
+}
+
+/* offline queue (localStorage). Entries are deleted as soon as they send. */
+const QKEY = 'oadKioskQueue';
+const queueGet = () => { try { return JSON.parse(localStorage.getItem(QKEY)) || []; } catch (_) { return []; } };
+const queueSet = q => { localStorage.setItem(QKEY, JSON.stringify(q)); renderQueueBadge(); };
+function queuePush(p) { const q = queueGet(); q.push({ ...p, ts: Date.now() }); queueSet(q); }
+function renderQueueBadge() {
+  const n = queueGet().length, b = $('queueBadge');
+  b.style.display = n ? 'inline' : 'none';
+  b.textContent = n ? `⏳ ${n} waiting to send` : '';
+}
+let flushing = false;
+async function flushQueue() {
+  if (flushing || !CONFIG.MAILER_URL || !navigator.onLine) return;
+  flushing = true;
+  try {
+    let q = queueGet();
+    while (q.length) {
+      const item = q[0];
+      try { await postToMailer(item); }
+      catch (err) { if (err.offline) break; /* server rejected: drop it */ }
+      q = queueGet(); q.shift(); queueSet(q);
+    }
+  } finally { flushing = false; }
+}
+window.addEventListener('online', flushQueue);
+setInterval(flushQueue, 60 * 1000);
+
+function showDone(title, msg, previewHtml) {
+  $('doneTitle').textContent = title;
+  $('doneMsg').textContent = msg;
+  const pv = $('donePreview');
+  pv.innerHTML = '';
+  if (previewHtml) {
+    const f = document.createElement('iframe');
+    f.className = 'preview'; f.setAttribute('sandbox', ''); f.srcdoc = previewHtml; f.title = 'Email preview';
+    pv.appendChild(f);
+  }
+  showOverlay('doneOverlay');
+  // clear personal data immediately; auto-return to start
+  $('email').value = ''; $('consent').checked = false;
+  basket.clear(); updateBasketUI(false);
+  clearTimeout(showDone._t);
+  showDone._t = setTimeout(() => { if ($('doneOverlay').classList.contains('open')) goHome(true); }, previewHtml ? 60000 : 10000);
+}
+
+/* Email template – used for the demo preview. Keep in sync with buildHtml_() in the Apps Script. */
+function buildEmailHtml(ids) {
+  const link = (url, text) => url ? `<a href="${esc(url)}" style="color:#5b3fd6">${esc(text)}</a>` : `${esc(text)} [link to confirm]`;
+  const blocks = ACTIVITIES.filter(a => ids.includes(a.id)).map(a => `
+    <tr><td style="padding:16px 0;border-bottom:1px solid #e6e2f5">
+      <h2 style="margin:0 0 4px;font-size:20px;color:#2a1878">${esc(a.title)}</h2>
+      <p style="margin:0 0 8px;color:#5b3fd6">${esc(a.tagline)}</p>
+      <p style="margin:0 0 8px">${esc(a.summary)}</p>
+      <ul style="margin:0 0 8px;padding-left:20px">${(a.points || []).map(p => `<li>${esc(p)}</li>`).join('')}</ul>
+      <p style="margin:0">${link(a.link || CONFIG.SITE_URL, 'Read more')}</p>
+    </td></tr>`).join('');
+  return `<!doctype html><html><body style="margin:0;background:#f4f2fb;font-family:Arial,Helvetica,sans-serif;color:#222">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px">
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fff;border-radius:12px;overflow:hidden">
+    <tr><td style="background:#2a1878;color:#fff;padding:24px"><div style="font-size:28px;font-weight:800">OAD</div>
+      <div style="font-size:14px;opacity:.85">IAU Office of Astronomy for Development</div></td></tr>
+    <tr><td style="padding:24px">
+      <p style="margin:0 0 8px;font-size:16px">Thanks for visiting the OAD at the Science Forum. Here are the flyers you chose.</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${blocks}</table>
+      <p style="margin:20px 0 8px;font-size:16px"><strong>Find out more:</strong> ${link(CONFIG.SITE_URL, 'www.astro4dev.org')}</p>
+      <p style="margin:0 0 8px;font-size:16px"><strong>Stay in touch:</strong> ${link(CONFIG.MAILING_LIST_URL, 'join our mailing list')} or ${link(CONFIG.DISCORD_URL, 'join our Discord')}.</p>
+    </td></tr>
+    <tr><td style="padding:16px 24px;background:#f4f2fb;font-size:12px;color:#666">
+      You received this one-off email because you asked for it at our stand. We have not added you to any mailing list.
+      ${CONFIG.PRIVACY_URL ? ' ' + link(CONFIG.PRIVACY_URL, 'Privacy notice') : ''}
+    </td></tr>
+  </table></td></tr></table></body></html>`;
+}
+
+/* =====================================================================
+   IDLE: attract mode + auto-reset
+   ===================================================================== */
+let lastActive = Date.now(), attract = null;
+function markActive() {
+  lastActive = Date.now();
+  if (attract) { cancelAnimationFrame(attract); attract = null; snap(); }
+}
+['pointerdown', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { lastActive = Date.now(); }, { passive: true }));
+function startAttract() {
+  let last = performance.now();
+  const tick = now => {
+    const dt = Math.min(50, now - last); last = now;
+    theta -= 0.00012 * dt; render();
+    attract = requestAnimationFrame(tick);
+  };
+  attract = requestAnimationFrame(tick);
+}
+setInterval(() => {
+  const idle = Date.now() - lastActive;
+  if (anyOverlayOpen()) {
+    if (idle > CONFIG.IDLE_RESET_MS) { lastActive = Date.now(); goHome(true); }
+  } else if (!attract && !anim && !drag && idle > CONFIG.ATTRACT_AFTER_MS) {
+    if (basket.size && idle > CONFIG.IDLE_RESET_MS) { basket.clear(); updateBasketUI(false); }
+    startAttract();
+  }
+}, 1000);
+
+/* screen wake lock (keeps tablet awake where supported) */
+async function keepAwake() { try { await navigator.wakeLock?.request('screen'); } catch (_) {} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
+
+/* init */
+layout();
+updateBasketUI(false);
+renderQueueBadge();
+keepAwake();
+flushQueue();
+</script>
+</body>
+</html>
